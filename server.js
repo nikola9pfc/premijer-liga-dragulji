@@ -39,14 +39,81 @@ async function player(id){
   const d=await get(`element-summary/${id}/`,6e5);
   return{history:d.history.slice(-5).map(h=>({r:h.round,o:h.opponent_team,h:h.was_home,m:h.minutes,p:h.total_points,g:h.goals_scored,a:h.assists})),
     fixtures:d.fixtures.slice(0,5).map(f=>({r:f.event,o:f.is_home?f.team_a:f.team_h,h:f.is_home,d:f.difficulty}))}}
-const mime={'.html':'text/html','.js':'text/javascript','.json':'application/json','.png':'image/png','.svg':'image/svg+xml'};
+const HTML=`<!DOCTYPE html><html lang="sr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Dragulji">
+<meta name="theme-color" content="#0e1116"><link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/icon-180.png">
+<title>Premier Dragulji</title>
+<style>
+:root{--bg:#0e1116;--c:#171c24;--t:#eef1f5;--m:#8b95a5;--a:#3ddc97;--b:#2a3140}
+@media(prefers-color-scheme:light){:root{--bg:#f4f6f9;--c:#fff;--t:#14181f;--m:#667085;--a:#0f9d63;--b:#dfe3ea}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px -apple-system,system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{padding:16px 16px 8px}h1{margin:0;font-size:24px}h1 span{color:var(--a)}.sub{color:var(--m);font-size:13px;margin-top:2px}
+input{width:calc(100% - 32px);margin:8px 16px;padding:11px 14px;border-radius:12px;border:1px solid var(--b);background:var(--c);color:var(--t);font-size:16px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 16px 10px}.chip{flex:none;padding:7px 13px;border-radius:20px;border:1px solid var(--b);background:var(--c);color:var(--t);font-size:13px}
+.chip.on{background:var(--a);color:#06281a;border-color:var(--a);font-weight:600}
+.card{display:flex;gap:12px;align-items:center;margin:0 16px 10px;padding:12px;background:var(--c);border:1px solid var(--b);border-radius:16px}
+.ph{width:52px;height:62px;border-radius:10px;background:var(--b) center/cover;flex:none}
+.in{flex:1;min-width:0}.nm{font-weight:650;font-size:16px}.mt{color:var(--m);font-size:12.5px;margin:2px 0}
+.tg{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}.tg i{font-style:normal;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--b)}
+.sc{width:46px;height:46px;border-radius:50%;border:3px solid var(--a);display:grid;place-items:center;font-weight:700;flex:none}
+.st{background:none;border:0;font-size:22px;color:var(--m);padding:4px}.st.on{color:#f5b301}
+#sh{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:calc(env(safe-area-inset-top) + 12px) 16px 40px;transform:translateY(100%);transition:.25s;z-index:9}#sh.o{transform:none}
+.bk{background:none;border:0;color:var(--a);font-size:16px;padding:6px 0}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.g div{background:var(--c);border:1px solid var(--b);border-radius:12px;padding:10px;text-align:center}.g b{display:block;font-size:18px}.g small{color:var(--m)}
+.br{margin:8px 0}.br div{height:8px;background:var(--b);border-radius:4px;margin-top:4px}.br span{display:block;height:100%;background:var(--a);border-radius:4px}
+h3{margin:18px 0 6px}.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--b);font-size:14px}.d1,.d2{color:#3ddc97}.d3{color:#f5b301}.d4,.d5{color:#ff6b6b}
+</style></head><body>
+<header><h1>Premier <span>Dragulji</span></h1><div class="sub" id="gw">Učitavanje…</div></header>
+<input id="q" placeholder="Traži igrača ili tim" type="search">
+<div class="chips" id="ch"></div><div id="ls"></div><div id="sh"></div>
+<script>
+const $=s=>document.querySelector(s);let D=[],T={},F={pos:'ALL',tag:null,fav:false},Q='';
+let W=[];try{W=JSON.parse(localStorage.w||'[]')}catch(e){}
+const sv=()=>{try{localStorage.w=JSON.stringify(W)}catch(e){}};
+const chips=[['ALL','Svi'],['FWD','Napad'],['MID','Sredina'],['DEF','Odbrana'],['GK','Golman'],['t:Ispod radara','Ispod radara'],['t:Klupa','Sa klupe'],['t:Mlad','Mladi'],['t:U formi','U formi'],['fav','★ Praćeni']];
+function drawChips(){$('#ch').innerHTML=chips.map(([k,l])=>{const on=k==='fav'?F.fav:k.startsWith('t:')?F.tag===k.slice(2):F.pos===k&&!F.fav;return\`<button class="chip \${on?'on':''}" data-k="\${k}">\${l}</button>\`}).join('')}
+$('#ch').onclick=e=>{const k=e.target.dataset.k;if(!k)return;
+  if(k==='fav')F.fav=!F.fav;else if(k.startsWith('t:')){const t=k.slice(2);F.tag=F.tag===t?null:t}else{F.pos=k;F.fav=false}
+  drawChips();draw()};
+$('#q').oninput=e=>{Q=e.target.value.toLowerCase();draw()};
+const ph=p=>\`https://resources.premierleague.com/premierleague/photos/players/110x140/p\${p.code}.png\`;
+function draw(){
+  let l=D.filter(p=>(F.pos==='ALL'||p.pos===F.pos)&&(!F.tag||p.tags.includes(F.tag))&&(!F.fav||W.includes(p.id))&&(!Q||(p.full+T[p.team].n).toLowerCase().includes(Q)));
+  $('#ls').innerHTML=l.slice(0,60).map(p=>\`<div class="card" data-id="\${p.id}"><div class="ph" style="background-image:url(\${ph(p)})"></div>
+  <div class="in"><div class="nm">\${p.name}</div><div class="mt">\${T[p.team].s} · \${p.pos} · £\${p.price}m\${p.age?' · '+p.age+' god.':''}</div>
+  <div class="mt">\${p.why}</div><div class="tg">\${p.tags.map(t=>\`<i>\${t}</i>\`).join('')}</div></div>
+  <button class="st \${W.includes(p.id)?'on':''}" data-s="\${p.id}">★</button><div class="sc">\${p.score}</div></div>\`).join('')||'<p class="sub" style="padding:16px">Nema rezultata.</p>'}
+$('#ls').onclick=e=>{const s=e.target.dataset.s;if(s){e.stopPropagation();const id=+s;W=W.includes(id)?W.filter(x=>x!==id):[...W,id];sv();draw();return}
+  const c=e.target.closest('.card');if(c)open(+c.dataset.id)};
+async function open(id){
+  const p=D.find(x=>x.id===id),sh=$('#sh');
+  sh.innerHTML=\`<button class="bk" onclick="$('#sh').classList.remove('o')">‹ Nazad</button>
+  <div style="display:flex;gap:14px;align-items:center"><div class="ph" style="width:80px;height:96px;background-image:url(\${ph(p)})"></div>
+  <div><h2 style="margin:0">\${p.full}</h2><div class="mt">\${T[p.team].n} · \${p.pos} · £\${p.price}m</div><div class="mt">Impact skor: <b style="color:var(--a)">\${p.score}</b></div></div></div>
+  \${p.news?\`<p class="mt">⚠ \${p.news}</p>\`:''}
+  <div class="g"><div><b>\${p.form}</b><small>Forma</small></div><div><b>\${p.own}%</b><small>Vlasništvo</small></div><div><b>\${p.min}'</b><small>Minuti</small></div>
+  <div><b>\${p.goals}</b><small>Golovi</small></div><div><b>\${p.ast}</b><small>Asist.</small></div><div><b>\${(p.xg+p.xa).toFixed(1)}</b><small>xG+xA</small></div></div>
+  <h3>Karakteristike (u odnosu na istu ulogu)</h3>\${Object.entries(p.bars).map(([k,v])=>\`<div class="br">\${k} · \${v}<div><span style="width:\${v}%"></span></div></div>\`).join('')}
+  <div id="x"><p class="sub">Učitavam utakmice…</p></div>\`;
+  sh.classList.add('o');sh.scrollTop=0;
+  try{const d=await(await fetch('/api/player/'+id)).json(),n=o=>T[o]?.s||'?';
+    $('#x').innerHTML=\`<h3>Poslednjih 5 utakmica</h3>\${d.history.map(h=>\`<div class="row"><span>KL\${h.r} \${h.h?'vs':'@'} \${n(h.o)}</span><span>\${h.m}' · \${h.g}G \${h.a}A · <b>\${h.p} bod.</b></span></div>\`).join('')||'—'}
+    <h3>Sledeći mečevi</h3>\${d.fixtures.map(f=>\`<div class="row"><span>KL\${f.r} \${f.h?'vs':'@'} \${n(f.o)}</span><span class="d\${f.d}">težina \${f.d}/5</span></div>\`).join('')||'—'}\`}
+  catch(e){$('#x').innerHTML='<p class="sub">Detalji trenutno nisu dostupni.</p>'}}
+(async()=>{try{const r=await(await fetch('/api/gems')).json();if(r.error)throw 0;D=r.players;T=r.teams;
+  $('#gw').textContent=\`Kolo \${r.gw} · igrači ispod radara koji menjaju utakmice\`;drawChips();draw()}
+ catch(e){$('#gw').textContent='Podaci trenutno nisu dostupni. Proveri konekciju.'}})();
+if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+</script></body></html>\`;
 http.createServer(async(req,res)=>{
   const u=new URL(req.url,'http://x'),send=(c,b,t='application/json')=>{res.writeHead(c,{'Content-Type':t+'; charset=utf-8'});res.end(typeof b==='string'?b:JSON.stringify(b))};
   try{
     if(u.pathname==='/api/gems')return send(200,await gems());
     const m=u.pathname.match(/^\/api\/player\/(\d+)$/);if(m)return send(200,await player(m[1]));
-    let f=path.join(__dirname,'public',u.pathname==='/'?'index.html':u.pathname);
-    if(!f.startsWith(path.join(__dirname,'public'))||!fs.existsSync(f))return send(404,'Nije nađeno','text/plain');
-    res.writeHead(200,{'Content-Type':mime[path.extname(f)]||'application/octet-stream'});fs.createReadStream(f).pipe(res);
-  }catch(e){send(502,{error:'FPL nedostupan: '+e.message})}
+    if(u.pathname==='/'||u.pathname==='/index.html')return send(200,HTML,'text/html');
+    if(u.pathname==='/manifest.json')return send(200,{name:'Premier Dragulji',short_name:'Dragulji',start_url:'/',display:'standalone',background_color:'#0e1116',theme_color:'#0e1116',icons:[{src:'/icon-192.png',sizes:'192x192',type:'image/png'},{src:'/icon-512.png',sizes:'512x512',type:'image/png'}]},'application/json');
+    send(404,'','text/plain');
+  }catch(e){send(502,{error:'FPL dostupnost: '+e.message})}
 }).listen(process.env.PORT||3000,()=>console.log('Radi na portu',process.env.PORT||3000));
